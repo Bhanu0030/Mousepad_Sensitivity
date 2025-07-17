@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trackpad Sensitivity Test</title>
+  <style>
+    /* Animated gradient background */
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(-45deg, #1e3c72, #2a5298, #ff6e7f, #bfe9ff);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      font-family: sans-serif;
+    }
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .game-container {
+      background: rgba(255, 255, 255, 0.85);
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin-top: 20px;
+      cursor: crosshair;
+    }
+    button {
+      font-size: 16px;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin-top: 10px;
+      border: none;
+      border-radius: 4px;
+      background-color: #2a5298;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #1e3c72;
+    }
+    #result {
+      font-weight: bold;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>Trackpad Sensitivity Test</h1>
+    <p>Click each circle as it appears. Your cursor movement will be tracked to gauge sensitivity.</p>
+    <button id="startBtn">Start Test</button>
+    <canvas id="gameCanvas" width="600" height="400" style="display:none;"></canvas>
+    <p id="result"></p>
+  </div>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const resultP = document.getElementById('result');
+
+    const TOTAL_TARGETS = 10;
+    const RADIUS = 20;
+    // Baseline average pointer movement per event (px/event) for a healthy trackpad
+    // Calculated as 400 DPI (pixels per inch) / 216.5 Hz sampling ≈ 1.85 px/event ([superuser.com](https://superuser.com/questions/1806930/how-many-counts-does-a-mouse-need-to-report-to-move-the-windows-cursor-for-1-pix?utm_source=chatgpt.com), [linustechtips.com](https://linustechtips.com/topic/1549729-on-mouse-report-rate-polling-rate-and-screen-refresh-rate?utm_source=chatgpt.com))
+    const BASELINE_AVG_MOVEMENT = 1.85;
+    const HEALTHY_THRESHOLD = 10; // percent tolerance
+
+    let currentTarget = 0;
+    let movementCount = 0;
+    let movementSum = 0;
+
+    function drawTarget() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const x = Math.random() * (canvas.width - 2 * RADIUS) + RADIUS;
+      const y = Math.random() * (canvas.height - 2 * RADIUS) + RADIUS;
+      ctx.beginPath();
+      ctx.arc(x, y, RADIUS, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff6e7f';
+      ctx.fill();
+      canvas.targetX = x;
+      canvas.targetY = y;
+    }
+
+    // Track pointer movement for sensitivity
+    canvas.addEventListener('mousemove', (e) => {
+      if (currentTarget < TOTAL_TARGETS) {
+        movementCount++;
+        movementSum += Math.hypot(e.movementX, e.movementY);
+      }
+    });
+
+    canvas.addEventListener('click', (e) => {
+      if (currentTarget >= TOTAL_TARGETS) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const dx = x - canvas.targetX;
+      const dy = y - canvas.targetY;
+      if (Math.hypot(dx, dy) <= RADIUS) {
+        currentTarget++;
+        if (currentTarget < TOTAL_TARGETS) {
+          drawTarget();
+        } else {
+          // Test complete: compute sensitivity
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const avgMovement = movementSum / movementCount;
+          const diff = avgMovement - BASELINE_AVG_MOVEMENT;
+          const percent = (diff / BASELINE_AVG_MOVEMENT) * 100;
+          let status;
+          if (Math.abs(percent) <= HEALTHY_THRESHOLD) {
+            status = 'healthy';
+          } else if (percent > 0) {
+            status = 'Pretty sensitive';
+          } else {
+            status = 'under-sensitive';
+          }
+          resultP.textContent =
+            `Test complete! Avg movement: ${avgMovement.toFixed(2)} px/event. ` +
+            `Baseline: ${BASELINE_AVG_MOVEMENT} px/event. ` +
+            `You are ${Math.abs(percent).toFixed(1)}% ${percent >= 0 ? 'above' : 'below'} baseline, indicating your trackpad is ${status}.`;
+          startBtn.style.display = 'inline-block';
+          startBtn.textContent = 'Restart Test';
+        }
+      }
+    });
+
+    startBtn.addEventListener('click', () => {
+      // Reset
+      currentTarget = 0;
+      movementCount = 0;
+      movementSum = 0;
+      resultP.textContent = '';
+      startBtn.style.display = 'none';
+      canvas.style.display = 'block';
+      drawTarget();
+    });
+  </script>
+</body>
+</html>
